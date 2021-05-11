@@ -106,3 +106,52 @@ to be added to the prologue of each protected function and a smattering more to
 be added to each epilogue. Further, the prologue only requires a single read
 and write to memory while the epilogue requires two additional reads and no
 additional writes to memory. In short, the performance impact is minimal. 
+
+The segment register `fs` refrences the orignal value of the canary and because
+it uses segmentation based addressing and not virtual memory addressing 
+it is difficult to locate. Memory segmentation is a way of accessing memory regions, 
+where the `fs` register address points to a Thread Local Storage (TLS)location. 
+The canary is located in TLS and is referenced via segementation by `fs`
+```
++pwndbg> x/10i $pc
+=> 0x555555554857 <vuln+93>:    xor    rax,QWORD PTR fs:0x28
+   0x555555554860 <vuln+102>:   je     0x555555554867 <vuln+109>
+   0x555555554862 <vuln+104>:   call   0x5555555546a0 <__stack_chk_fail@plt>
+   0x555555554867 <vuln+109>:   leave  
+   0x555555554868 <vuln+110>:   ret    
+   0x555555554869 <main>:       push   rbp
+   0x55555555486a <main+1>:     mov    rbp,rsp
+   0x55555555486d <main+4>:     sub    rsp,0x10
+   0x555555554871 <main+8>:     mov    DWORD PTR [rbp-0x4],edi
+   0x555555554874 <main+11>:    mov    QWORD PTR [rbp-0x10],rsi
++pwndbg>  i r $rax
+rax            0xe0ea5fd06e21a700       -2239872515857864960
++pwndbg>  search -t bytes --hex 00a7216e
+warning: Unable to access 16000 bytes of target memory at 0x7ffff7bd4d03, halting search.
+                0x7ffff7fe9728 0xe0ea5fd06e21a700
+[stack]         0x7fffffffadf0 0xe0ea5fd06e21a700
+[stack]         0x7fffffffaea8 0xe0ea5fd06e21a700
+[stack]         0x7fffffffe118 0xe0ea5fd06e21a700
+x/10gx 0x7ffff7fe9728
+0x7ffff7fe9728: 0xe0ea5fd06e21a700      0x9129835d1c00da5f
+0x7ffff7fe9738: 0x0000000000000000      0x0000000000000000
+0x7ffff7fe9748: 0x0000000000000000      0x0000000000000000
+0x7ffff7fe9758: 0x0000000000000000      0x0000000000000000
+```
+Here we see that the segment register fs:0x28 refrences the canary for this program.
+We prove this by taking a look at the value that's now placed in the register and 
+observing the canary in $rax. 
+
+*Note, in little indian canary values start with 00 becaust "\x00" is read as a null byte
+making it harder to guess the canary during an exploit.*
+
+In order to locate the `fs` register or the address of where the canary is refrenced in memory,
+we will have to scan the whole memory by using `search -t bytes --hex <canary in little endian>`.
+We look for the canary pattern in memory and we get the addresses of where the canary is located
+in memory. You can test this by doing a buffer overflow and looking at where the canary is 
+refrenced in memory to see your changes made to the register. You can see that when we are 
+looking for the canary in memory there are multiple copies of it on the stack. 
+This is because each program places it's own copy of the canary on the stack and it helps 
+check if the canary value has changed when detecting that the return address for a 
+particular function call has been modified. 
+
