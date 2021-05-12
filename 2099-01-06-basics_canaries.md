@@ -143,9 +143,9 @@ x/10gx 0x7ffff7fe9728
 Here we observe that the canary value is indeed referenced by `fs:0x28`
 and placed in $rax.
 
-*Note canary values usually end in `00` in order to make it harder to guess
-the canary value during an exploit, because in little endian `\x00` is read as 
-a null byte*
+*Note canary values usually end in `00` which can make it harder to pass a canary 
+value during an exploit because scanf for example, reads `\x00` as a null byte 
+from a user input, which then causes it to stop reading the rest of the canary value.*
 
 In order to find the location of where the canary value is referenced, we have 
 to scan the entire memory. We accomplish this by searching for the hex value pattern
